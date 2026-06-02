@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Your Config
       uses: actions/checkout@v4
       with:
-        path: repo-root # Checks out the entire 'Terminal' folder into 'repo-root'
+        path: repo-root
 
     - name: Setup Neovim
       uses: rhysd/action-setup-vim@v1
@@ -28,14 +28,12 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         mkdir -p ~/.config
-        # We explicitly target the nested LazyVim folder here
         mv repo-root/LazyVim ~/.config/nvim
 
     - name: Prepare Directories (Windows)
       if: runner.os == 'Windows'
       shell: powershell
       run: |
-        # We explicitly target the nested LazyVim folder here
         Move-Item -Path repo-root\LazyVim -Destination $env:LOCALAPPDATA\nvim
 
     - name: Headless Download (Plugins & Binaries)
@@ -62,11 +60,35 @@ jobs:
         Copy-Item -Path $env:LOCALAPPDATA\nvim-data -Destination offline-build\nvim-data -Recurse
         Compress-Archive -Path offline-build\* -DestinationPath offline-windows.zip
 
-    - name: Upload Build to GitHub
+    # Temporarily hold the files so the release job can grab them
+    - name: Upload temporary files
       uses: actions/upload-artifact@v4
       with:
-        name: neovim-offline-${{ runner.os }}
+        name: build-${{ runner.os }}
         path: |
           offline-linux.tar.gz
           offline-windows.zip
-        retention-days: 7
+        retention-days: 1
+
+  # NEW JOB: Gather the files and create the public release
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # CRITICAL: Gives the bot permission to create a Release
+    steps:
+      - name: Download all built packages
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-files
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Offline IDE - Build #${{ github.run_number }}"
+          body: "Automated offline Neovim packages built from the latest commit."
+          files: |
+            ./release-files/offline-linux.tar.gz
+            ./release-files/offline-windows.zip
