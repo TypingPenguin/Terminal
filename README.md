@@ -31,6 +31,7 @@ A fully portable, pre-configured Neovim setup (LazyVim) packed with plugins, lan
 mkdir -p ~/.config ~/.local/share
 mv nvim ~/.config/nvim
 mv nvim-data ~/.local/share/nvim
+chown -R $(whoami):$(whoami) ~/.config/nvim ~/.local/share/nvim 
 ```  
 
 
