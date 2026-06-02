@@ -19,8 +19,9 @@ jobs:
         path: repo-root # Checks out the entire 'Terminal' folder into 'repo-root'
 
     - name: Setup Neovim
-      uses: rhysd/action-setup-neovim@v1
+      uses: rhysd/action-setup-vim@v1
       with:
+        neovim: true
         version: stable
 
     - name: Prepare Directories (Linux)
