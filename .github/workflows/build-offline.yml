@@ -1,0 +1,71 @@
+name: Build Offline Neovim
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: 
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout Your Config
+      uses: actions/checkout@v4
+      with:
+        path: repo-root # Checks out the entire 'Terminal' folder into 'repo-root'
+
+    - name: Setup Neovim
+      uses: rhysd/action-setup-neovim@v1
+      with:
+        version: stable
+
+    - name: Prepare Directories (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        mkdir -p ~/.config
+        # We explicitly target the nested LazyVim folder here
+        mv repo-root/LazyVim ~/.config/nvim
+
+    - name: Prepare Directories (Windows)
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        # We explicitly target the nested LazyVim folder here
+        Move-Item -Path repo-root\LazyVim -Destination $env:LOCALAPPDATA\nvim
+
+    - name: Headless Download (Plugins & Binaries)
+      shell: bash
+      run: |
+        nvim --headless "+Lazy! sync" +qa
+        nvim --headless "+MasonInstall rust-analyzer pyright gopls typescript-language-server" +qa
+        sleep 45
+
+    - name: Package Artifacts (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        mkdir offline-build
+        cp -r ~/.config/nvim offline-build/nvim
+        cp -r ~/.local/share/nvim offline-build/nvim-data
+        tar -czvf offline-linux.tar.gz -C offline-build .
+
+    - name: Package Artifacts (Windows)
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        New-Item -ItemType Directory -Path offline-build
+        Copy-Item -Path $env:LOCALAPPDATA\nvim -Destination offline-build\nvim -Recurse
+        Copy-Item -Path $env:LOCALAPPDATA\nvim-data -Destination offline-build\nvim-data -Recurse
+        Compress-Archive -Path offline-build\* -DestinationPath offline-windows.zip
+
+    - name: Upload Build to GitHub
+      uses: actions/upload-artifact@v4
+      with:
+        name: neovim-offline-${{ runner.os }}
+        path: |
+          offline-linux.tar.gz
+          offline-windows.zip
+        retention-days: 7
